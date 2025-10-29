@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Momstone 워킹맘 통합 진단 (확장형 · 40문항)</title>
+  <!-- Tailwind CSS (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM (Production CDN) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Use inline CSS for print-friendly layout -->
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { color: #000; }
+      .page { box-shadow: none !important; border: none !important; }
+    }
+    .chip { @apply px-3 py-1 rounded-full border text-sm; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <div id="app" class="min-h-screen py-6"></div>
+
+  <script>
+  const { useMemo, useState } = React;
+
+  const SCALE_LABELS = ["전혀 아님 (0)", "가끔 (1)", "자주 (2)", "항상 (3)"];
+
+  const DOMAINS = [
+    {
+      id: "emotional",
+      title: "1. 심리 상태 (Emotional Balance)",
+      max: 12,
+      bands: [
+        { to: 4, label: "감정 억압형", tip: "감정 언어화 훈련, 지금 느끼는 감정 이름 붙이기" },
+        { to: 8, label: "감정 인식 중", tip: "감정 일지·표현 연습, 자기이해 중심 코칭" },
+        { to: 12, label: "정서 균형형", tip: "감정 기반 의사결정, 공감 리더십 확장" },
+      ],
+      items: [
+        { text: "요즘 내 감정이 자주 바뀌거나 통제하기 어렵다.", reverse: true },
+        { text: "감정이 올라올 때 그 이유를 명확히 설명하기 어렵다.", reverse: true },
+        { text: "내 감정을 주변 사람들에게 솔직히 표현하기 어렵다.", reverse: true },
+        { text: "하루를 돌아볼 때 감정보다 ‘해야 할 일’ 위주로만 떠오른다.", reverse: true },
+      ],
+    },
+    {
+      id: "energy",
+      title: "2. 에너지 관리 (Energy Management)",
+      max: 18,
+      bands: [
+        { to: 6, label: "소모형", tip: "에너지 인식·휴식 재설계, 나의 에너지 지도 작성" },
+        { to: 12, label: "불균형형", tip: "회복 루틴 만들기, 생체 리듬 파악" },
+        { to: 18, label: "의식적 관리형", tip: "의미 기반 에너지 관리, 몰입-회복 균형" },
+      ],
+      items: [
+        { text: "하루 중 언제 에너지가 가장 높고, 언제 낮은지 알고 있다.", reverse: false },
+        { text: "내 에너지를 회복시키는 방법(휴식, 대화, 취미 등)을 의도적으로 실천한다.", reverse: false },
+        { text: "피로가 쌓이거나 긴장될 때 몸의 신호를 인식하고 대응한다.", reverse: false },
+        { text: "내 에너지를 빠르게 소모시키는 상황이나 사람을 알고 있다.", reverse: false },
+        { text: "바쁜 날에도 잠시 멈추거나 쉬어갈 시간을 마련한다.", reverse: false },
+        { text: "에너지가 떨어졌을 때, 스스로를 몰아붙이기보다 회복을 우선한다.", reverse: false },
+      ],
+    },
+    {
+      id: "resilience",
+      title: "3. 회복탄력성 (Resilience)",
+      max: 12,
+      bands: [
+        { to: 4, label: "취약 단계", tip: "사고 전환 코칭, 실패의 재정의" },
+        { to: 8, label: "균형 회복형", tip: "내적 대화 훈련, 회복 패턴 인식" },
+        { to: 12, label: "탄력 확장형", tip: "리더십·멘토링 확장, 성장 중심" },
+      ],
+      items: [
+        { text: "예상치 못한 변화가 생겨도 곧 균형을 찾는다.", reverse: false },
+        { text: "실수나 후회가 생겨도 스스로를 과하게 비난하지 않는다.", reverse: false },
+        { text: "어려움 속에서도 배우거나 성장할 수 있다고 믿는다.", reverse: false },
+        { text: "도움을 요청하거나 지원을 받는 것을 약점으로 느끼지 않는다.", reverse: false },
+      ],
+    },
+    {
+      id: "strengths",
+      title: "4. 강점과 동기 (Strengths & Motivation)",
+      max: 12,
+      bands: [
+        { to: 4, label: "강점 미인지형", tip: "강점 탐색, 최근 몰입했던 순간 돌아보기" },
+        { to: 8, label: "잠재 강점형", tip: "강점 기반 행동계획 수립" },
+        { to: 12, label: "자기동기형", tip: "성장 비전, 영향력 확장" },
+      ],
+      items: [
+        { text: "내가 잘하는 일이나 강점을 알고 있다.", reverse: false },
+        { text: "강점을 발휘할 때 시간 가는 줄 모르고 몰입한다.", reverse: false },
+        { text: "새로운 일에 도전할 때 두려움보다 설렘이 크다.", reverse: false },
+        { text: "내가 세운 목표는 ‘해야 해서’보다 ‘하고 싶어서’의 비중이 크다.", reverse: false },
+      ],
+    },
+    {
+      id: "identity",
+      title: "5. 자기 정체감과 역할 통합 (Identity Integration)",
+      max: 18,
+      bands: [
+        { to: 6, label: "혼란형", tip: "자기정체성 재발견, 나다움 재정의" },
+        { to: 12, label: "균형 탐색형", tip: "역할 의미 재해석, 삶의 원형 차트" },
+        { to: 18, label: "통합형", tip: "자기표현 확장, 정체감 기반 리더십" },
+      ],
+      items: [
+        { text: "‘엄마로서의 나’와 ‘나 자신으로서의 나’를 분리해서 생각한다.", reverse: true },
+        { text: "일과 가정 중 어느 한쪽을 포기해야 한다는 압박을 느낀다.", reverse: true },
+        { text: "지금의 나는 ‘진짜 나’와 거리가 있다고 느낀다.", reverse: true },
+        { text: "다양한 역할(엄마, 파트너, 일하는 사람)을 균형 있게 바라본다.", reverse: false },
+        { text: "나는 어떤 역할을 하든 본질적으로 같은 사람이라고 느낀다.", reverse: false },
+        { text: "나의 정체성은 ‘성과’보다 ‘가치’에 의해 정의된다고 생각한다.", reverse: false },
+      ],
+    },
+    {
+      id: "relationship",
+      title: "6. 관계적 자원 (Relational Support & Connection)",
+      max: 18,
+      bands: [
+        { to: 6, label: "고립형", tip: "관계적 회복, 도움 요청 연습" },
+        { to: 12, label: "부분 연결형", tip: "신뢰 관계 강화, 감정 표현" },
+        { to: 18, label: "상호성 확립형", tip: "관계 리더십, 커뮤니티 확장" },
+      ],
+      items: [
+        { text: "내 이야기를 판단 없이 들어주는 사람이 있다.", reverse: false },
+        { text: "필요할 때 도움을 요청하는 것이 어렵지 않다.", reverse: false },
+        { text: "관계 속에서 ‘에너지를 주는 사람’과 ‘소모시키는 사람’을 구분한다.", reverse: false },
+        { text: "가족이나 친구와의 대화가 나를 회복시킨다고 느낀다.", reverse: false },
+        { text: "타인에게 기댈 때 죄책감보다 안도감이 크다.", reverse: false },
+        { text: "나 역시 다른 이에게 따뜻한 지지의 존재가 된다.", reverse: false },
+      ],
+    },
+    {
+      id: "values",
+      title: "7. 가치와 의미 (Values & Purpose Alignment)",
+      max: 12,
+      bands: [
+        { to: 4, label: "가치 혼돈형", tip: "가치 탐색, 왜 이 일을 하는가" },
+        { to: 8, label: "가치 인식형", tip: "가치-행동 일치 계획" },
+        { to: 12, label: "가치 일관형", tip: "비전·가치 기반 리더십" },
+      ],
+      items: [
+        { text: "나는 지금의 선택이 나의 가치와 일치한다고 느낀다.", reverse: false },
+        { text: "일이든 육아든, 나에게 ‘의미 있다’고 느끼는 순간이 자주 있다.", reverse: false },
+        { text: "내가 중요하게 여기는 가치를 가족이나 일터에서도 표현할 수 있다.", reverse: false },
+        { text: "내가 지키고 싶은 가치가 삶의 방향을 결정한다.", reverse: false },
+      ],
+    },
+    {
+      id: "selfcompassion",
+      title: "8. 자기 연민과 수용 (Self‑Compassion & Acceptance)",
+      max: 12,
+      bands: [
+        { to: 4, label: "자기비판형", tip: "자기연민 코칭, 나에게 따뜻한 시선" },
+        { to: 8, label: "수용 전환형", tip: "자기이해 강화, 자기돌봄 루틴" },
+        { to: 12, label: "따뜻한 수용형", tip: "자기존중 기반 성장" },
+      ],
+      items: [
+        { text: "내가 실수했을 때, 스스로를 위로할 수 있다.", reverse: false },
+        { text: "완벽하지 않아도 괜찮다고 느끼는 순간이 있다.", reverse: false },
+        { text: "다른 엄마들과 비교하지 않고 내 속도를 인정한다.", reverse: false },
+        { text: "비판보다 이해의 시선으로 자신을 바라본다.", reverse: false },
+      ],
+    },
+    {
+      id: "vision",
+      title: "9. 미래 비전과 성장 의지 (Vision & Growth Readiness)",
+      max: 12,
+      bands: [
+        { to: 4, label: "정체형", tip: "방향성 코칭, 내가 진짜 원하는 것은?" },
+        { to: 8, label: "탐색형", tip: "행동계획 수립, 10% 변화 실험" },
+        { to: 12, label: "성장 확장형", tip: "장기 비전, 영향력 확장" },
+      ],
+      items: [
+        { text: "향후 1년 안에 이루고 싶은 목표가 있다.", reverse: false },
+        { text: "그 목표를 생각하면 두려움보다 설렘이 더 크다.", reverse: false },
+        { text: "변화나 배움을 시도하는 것이 즐겁다.", reverse: false },
+        { text: "현재의 선택이 나의 미래를 위한 발판이라고 느낀다.", reverse: false },
+      ],
+    },
+  ];
+
+  function profileFromTotal(total) {
+    if (total <= 40) return { label: "생존 모드 (Survival)", tip: "감정·에너지 회복 중심으로 리듬을 재설계해요." };
+    if (total <= 75) return { label: "균형 회복기 (Recovery)", tip: "자기관리와 관계 자원을 강화해 균형을 고정해요." };
+    if (total <= 100) return { label: "성장 전환기 (Growth)", tip: "강점과 비전을 정렬해 실천 밀도를 높여요." };
+    return { label: "통합 성숙기 (Integration)", tip: "나다움과 의미를 잇고, 영향력을 나눌 때예요." };
+  }
+
+  function bandForScore(domain, score) {
+    return domain.bands.find(b => score <= b.to) || domain.bands[domain.bands.length - 1];
+  }
+
+  function App() {
+    const [answers, setAnswers] = useState({});
+    const totalItems = useMemo(() => DOMAINS.reduce((sum, d) => sum + d.items.length, 0), []);
+    const answeredCount = useMemo(() => Object.values(answers).filter(v => v !== undefined).length, [answers]);
+    const progress = Math.round((answeredCount / totalItems) * 100);
+    const allAnswered = answeredCount === totalItems;
+
+    const { domainScores, totalScore } = useMemo(() => {
+      const scores = {};
+      DOMAINS.forEach(d => {
+        let s = 0;
+        d.items.forEach((item, idx) => {
+          const key = d.id + "-" + idx;
+          const raw = answers[key];
+          if (raw !== undefined) {
+            s += item.reverse ? 3 - raw : raw;
+          }
+        });
+        scores[d.id] = s;
+      });
+      const total = Object.values(scores).reduce((a, b) => a + b, 0);
+      return { domainScores: scores, totalScore: total };
+    }, [answers]);
+
+    const onChange = (domainId, idx, value) => {
+      setAnswers(prev => ({ ...prev, [domainId + "-" + idx]: value }));
+    };
+
+    const resetAll = () => setAnswers({});
+
+    const exportCSV = () => {
+      const csvEscape = s => '"' + String(s).replaceAll('"', '""') + '"';
+      let rows = [];
+      rows.push(["Domain","Item","Statement","Reverse","Answer","Scored"].map(csvEscape).join(","));
+      DOMAINS.forEach(d => {
+        d.items.forEach((item, idx) => {
+          const key = d.id + "-" + idx;
+          const raw = answers[key];
+          const scored = raw === undefined ? "" : String(item.reverse ? 3 - raw : raw);
+          rows.push([
+            csvEscape(d.title),
+            csvEscape(String(idx + 1)),
+            csvEscape(item.text),
+            csvEscape(item.reverse ? "Y" : "N"),
+            csvEscape(raw === undefined ? "" : String(raw)),
+            csvEscape(scored),
+          ].join(","));
+        });
+      });
+      rows.push("");
+      rows.push(["Domain","Max","Score"].map(csvEscape).join(","));
+      DOMAINS.forEach(d => {
+        const s = domainScores[d.id] || 0;
+        rows.push([csvEscape(d.title), csvEscape(String(d.max)), csvEscape(String(s))].join(","));
+      });
+      rows.push([csvEscape("Total"), csvEscape("120"), csvEscape(String(totalScore))].join(","));
+
+      const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "momstone_diagnostic_" + new Date().toISOString().slice(0,10) + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    const printPDF = () => window.print();
+
+    const profile = useMemo(() => profileFromTotal(totalScore), [totalScore]);
+
+    return (
+      React.createElement("div", { className: "page mx-auto max-w-5xl px-4 sm:px-6 md:px-8" },
+        React.createElement("div", { className: "mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3" },
+          React.createElement("h1", { className: "text-2xl md:text-3xl font-semibold tracking-tight" }, "Momstone 워킹맘 통합 진단 (확장형 · 40문항)"),
+          React.createElement("div", { className: "no-print flex gap-2" },
+            React.createElement("button", { onClick: exportCSV, className: "chip border-gray-300 bg-white hover:bg-gray-50" }, "CSV 내보내기"),
+            React.createElement("button", { onClick: printPDF, className: "chip border-gray-300 bg-white hover:bg-gray-50" }, "PDF/인쇄"),
+            React.createElement("button", { onClick: resetAll, className: "chip border-gray-300 bg-white hover:bg-gray-50" }, "초기화")
+          )
+        ),
+        React.createElement("div", { className: "mb-4 rounded-2xl bg-white border shadow-sm p-4 md:p-6" },
+          React.createElement("div", { className: "mb-3 text-sm md:text-base" },
+            "아래 문항은 ", React.createElement("b", null, "자기인식과 코칭을 위한 참고용"), "입니다. 의료·심리 진단을 대체하지 않으며, 응급/위기 상황(자해 생각, 심각한 우울 등)에서는 즉시 전문기관에 도움을 요청하세요."
+          ),
+          React.createElement("div", { className: "flex items-center gap-3" },
+            React.createElement("div", { className: "w-full h-2 bg-gray-200 rounded-full overflow-hidden" },
+              React.createElement("div", { className: "h-2 bg-gray-900", style: { width: progress + "%" } })
+            ),
+            React.createElement("div", { className: "text-sm tabular-nums w-24 text-right" }, progress, "%")
+          )
+        ),
+        React.createElement("div", { className: "space-y-8" },
+          DOMAINS.map(domain =>
+            React.createElement("div", { key: domain.id, className: "rounded-2xl bg-white border shadow-sm p-4 md:p-6" },
+              React.createElement("h2", { className: "text-lg md:text-xl font-semibold mb-4" }, domain.title),
+              React.createElement("div", { className: "space-y-6" },
+                domain.items.map((item, idx) => {
+                  const key = domain.id + "-" + idx;
+                  const val = answers[key];
+                  return React.createElement("div", { key: key, className: "grid gap-2" },
+                    React.createElement("div", { className: "text-sm md:text-base" }, (idx + 1) + ". " + item.text),
+                    React.createElement("div", { className: "flex flex-wrap gap-2" },
+                      SCALE_LABELS.map((label, v) =>
+                        React.createElement("button", {
+                          key: v,
+                          onClick: () => onChange(domain.id, idx, v),
+                          className: "chip transition " + (val === v ? "bg-black text-white border-black" : "bg-white hover:bg-gray-50 border-gray-300"),
+                          "aria-pressed": val === v
+                        }, label)
+                      )
+                    )
+                  );
+                })
+              ),
+              React.createElement(DomainSummary, { domain, answers })
+            )
+          )
+        ),
+        React.createElement("div", { className: "my-8 rounded-2xl bg-white border-2 p-4 md:p-6" },
+          React.createElement("h2", { className: "text-xl md:text-2xl font-semibold mb-2" }, "총합 결과"),
+          React.createElement("p", { className: "text-sm text-gray-600 mb-4" }, "총점은 0–120점입니다. 점수가 높을수록 통합·성장 상태에 가깝습니다."),
+          React.createElement("div", { className: "grid md:grid-cols-2 gap-4 md:gap-6" },
+            React.createElement("div", { className: "rounded-xl border p-4" },
+              React.createElement("div", { className: "text-sm text-gray-600" }, "총점"),
+              React.createElement("div", { className: "text-3xl font-bold tabular-nums" }, totalScore),
+              React.createElement("div", { className: "mt-2 text-sm" }, "프로파일: ", React.createElement("b", null, profile.label)),
+              React.createElement("div", { className: "mt-1 text-sm text-gray-700" }, "제안: ", profile.tip)
+            ),
+            React.createElement("div", { className: "rounded-xl border p-4" },
+              React.createElement("div", { className: "text-sm text-gray-600 mb-2" }, "영역별 점수"),
+              React.createElement("ul", { className: "space-y-2" },
+                DOMAINS.map(d => {
+                  const s = (domainScores[d.id] || 0);
+                  const band = bandForScore(d, s);
+                  const pct = Math.round((s / d.max) * 100);
+                  return React.createElement("li", { key: "sum-" + d.id, className: "grid grid-cols-12 items-center gap-2" },
+                    React.createElement("div", { className: "col-span-6 md:col-span-5 text-xs md:text-sm truncate" }, d.title),
+                    React.createElement("div", { className: "col-span-3 md:col-span-3 text-right text-xs md:text-sm tabular-nums" }, s + "/" + d.max),
+                    React.createElement("div", { className: "col-span-3 md:col-span-4" },
+                      React.createElement("div", { className: "flex items-center gap-2" },
+                        React.createElement("div", { className: "w-full h-2 bg-gray-200 rounded-full overflow-hidden" },
+                          React.createElement("div", { className: "h-2 bg-gray-900", style: { width: pct + "%" } })
+                        ),
+                        React.createElement("span", { className: "text-[10px] md:text-xs whitespace-nowrap" }, band.label)
+                      )
+                    )
+                  );
+                })
+              )
+            )
+          ),
+          !allAnswered && React.createElement("div", { className: "mt-4 flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm" },
+            React.createElement("span", { className: "mt-0.5" }, "⚠️"),
+            React.createElement("div", null, "아직 응답하지 않은 문항이 있습니다. 모든 문항에 응답하면 보다 정확한 해석을 볼 수 있어요.")
+          ),
+          React.createElement("div", { className: "mt-6 text-xs text-gray-500 leading-relaxed" },
+            React.createElement("p", null, React.createElement("b", null, "고지:"), " 본 도구는 자기인식과 코칭을 위한 참고용 도구입니다. 의료·심리 진단을 대체하지 않으며, 응급/위기 상황에서는 해당 지역의 전문기관과 긴급 연락처를 이용하시기 바랍니다. 응답 데이터는 저장하지 않으며, CSV로 내보내기를 선택한 경우에만 사용자의 기기로 파일이 다운로드됩니다.")
+          )
+        )
+      )
+    );
+  }
+
+  function DomainSummary({ domain, answers }) {
+    const score = React.useMemo(() => {
+      let s = 0;
+      domain.items.forEach((item, idx) => {
+        const key = domain.id + "-" + idx;
+        const raw = answers[key];
+        if (raw !== undefined) s += item.reverse ? 3 - raw : raw;
+      });
+      return s;
+    }, [answers, domain]);
+    const max = domain.max;
+    const pct = Math.round((score / max) * 100);
+    const band = bandForScore(domain, score);
+
+    return React.createElement("div", { className: "mt-6 rounded-xl border p-4" },
+      React.createElement("div", { className: "flex items-center justify-between mb-2" },
+        React.createElement("div", { className: "text-sm text-gray-600" }, "영역 점수"),
+        React.createElement("div", { className: "text-base md:text-lg font-semibold tabular-nums" }, score, " / ", max)
+      ),
+      React.createElement("div", { className: "w-full h-2 bg-gray-200 rounded-full overflow-hidden" },
+        React.createElement("div", { className: "h-2 bg-gray-900", style: { width: pct + "%" } })
+      ),
+      React.createElement("div", { className: "mt-2 text-sm" }, "상태: ", React.createElement("b", null, band.label)),
+      React.createElement("div", { className: "text-sm text-gray-700" }, "제안: ", band.tip)
+    );
+  }
+
+  const root = ReactDOM.createRoot(document.getElementById("app"));
+  root.render(React.createElement(App));
+  </script>
+</body>
+</html>
